@@ -7,8 +7,8 @@
  * Author : jihoonkimtech
  *
  * Pin map
- *   I2C0 : SDA=GP4, SCL=GP5  -> ENS160(0x53) + AHT21(0x38)   [3.3V only]
- *   I2C1 : SDA=GP2, SCL=GP3  -> BH1750(0x23)                  [3.3V]
+ *   I2C0 : SDA=GP4, SCL=GP5  -> BH1750(0x23)                  [3.3V]
+ *   I2C1 : SDA=GP2, SCL=GP3  -> ENS160(0x53) + AHT21(0x38)   [3.3V only]
  *   UART0: TX =GP0, RX =GP1  -> PMS7003 (9600bps)             [VBUS 5V]
  *
  * Note: UART0 belongs to the PMS7003, so stdio_uart must stay disabled.
@@ -30,13 +30,13 @@
 #include "drivers/pms7003.h"
 
 // ---------------- Pin and bus configuration ----------------
-#define I2C_ENV        i2c0
-#define PIN_ENV_SDA    4
-#define PIN_ENV_SCL    5
+#define I2C_LUX        i2c0
+#define PIN_LUX_SDA    4
+#define PIN_LUX_SCL    5
 
-#define I2C_LUX        i2c1
-#define PIN_LUX_SDA    2
-#define PIN_LUX_SCL    3
+#define I2C_ENV        i2c1
+#define PIN_ENV_SDA    2
+#define PIN_ENV_SCL    3
 
 #define I2C_BAUD       100000   // 100kHz. Do not raise this on long wiring.
 
@@ -47,8 +47,8 @@
 
 // ---------------- Feature flags ----------------
 // Run a bus scan at startup before touching any sensor.
-// Keep this on during bring-up, turn it off once wiring is settled.
-#define ENABLE_I2C_SCAN  1
+// Turn this on during bring-up when a sensor fails to initialize.
+#define ENABLE_I2C_SCAN  0
 
 // ---------------- Scheduling periods (ms) ----------------
 // Chassis speed is about 0.228 m/s. BH1750 runs fast, the rest are
@@ -73,19 +73,19 @@ typedef enum { AHT_IDLE, AHT_WAIT } aht_state_t;
 static aht_state_t g_aht_state = AHT_IDLE;
 
 static void bus_init(void) {
-    // I2C0 for the environment combo board (ENS160 + AHT21)
-    i2c_init(I2C_ENV, I2C_BAUD);
-    gpio_set_function(PIN_ENV_SDA, GPIO_FUNC_I2C);
-    gpio_set_function(PIN_ENV_SCL, GPIO_FUNC_I2C);
-    gpio_pull_up(PIN_ENV_SDA);
-    gpio_pull_up(PIN_ENV_SCL);
-
-    // I2C1 for the ambient light sensor
+    // I2C0 for the ambient light sensor
     i2c_init(I2C_LUX, I2C_BAUD);
     gpio_set_function(PIN_LUX_SDA, GPIO_FUNC_I2C);
     gpio_set_function(PIN_LUX_SCL, GPIO_FUNC_I2C);
     gpio_pull_up(PIN_LUX_SDA);
     gpio_pull_up(PIN_LUX_SCL);
+
+    // I2C1 for the environment combo board (ENS160 + AHT21)
+    i2c_init(I2C_ENV, I2C_BAUD);
+    gpio_set_function(PIN_ENV_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(PIN_ENV_SCL, GPIO_FUNC_I2C);
+    gpio_pull_up(PIN_ENV_SDA);
+    gpio_pull_up(PIN_ENV_SCL);
 
     // UART0 for the dust sensor
     uart_init(UART_PMS, PMS_BAUD);
@@ -121,8 +121,8 @@ int main(void) {
 #if ENABLE_I2C_SCAN
     // Scan before sensor init: the scan sees the raw bus state, and the
     // result still reaches the host even if an init call later stalls.
-    i2c_scan(I2C_ENV, 0);
-    i2c_scan(I2C_LUX, 1);
+    i2c_scan(I2C_LUX, 0);
+    i2c_scan(I2C_ENV, 1);
     lq_flush();
 #endif
 

@@ -27,8 +27,8 @@ pico2_sensor_fusion/
 
 | 버스 | 핀 | 연결 | 비고 |
 |---|---|---|---|
-| I2C0 | SDA=GP4, SCL=GP5 | ENS160(0x53) + AHT21(0x38) | **3.3V 전용**, 5V 금지 |
-| I2C1 | SDA=GP2, SCL=GP3 | BH1750(0x23) | 3.3V |
+| I2C0 | SDA=GP4, SCL=GP5 | BH1750(0x23) | 3.3V |
+| I2C1 | SDA=GP2, SCL=GP3 | ENS160(0x53) + AHT21(0x38) | **3.3V 전용**, 5V 금지 |
 | UART0 | TX=GP0, RX=GP1 | PMS7003 (9600bps) | VBUS(5V) 급전 |
 
 - Pico TX(GP0) → PMS7003 RX, Pico RX(GP1) → PMS7003 TX
@@ -148,16 +148,16 @@ screen /dev/ttyACM0 115200
 
 ### I2C 버스 스캔
 
-`main.c`의 `ENABLE_I2C_SCAN`이 1이면 부팅 직후 두 버스의 `0x08`~`0x77` 구간을 훑어 응답하는 주소를 보고한다. 배선 문제와 주소 문제를 구분하는 가장 빠른 방법이다.
+`main.c`의 `ENABLE_I2C_SCAN`을 1로 두면 부팅 직후 두 버스의 `0x08`~`0x77` 구간을 훑어 응답하는 주소를 보고한다. 배선 문제와 주소 문제를 구분하는 가장 빠른 방법이므로, 센서 초기화가 실패할 때 켜서 사용한다. 기본값은 0이다.
 
 ```json
-{"src":"sys","event":"i2c_found","bus":0,"addr":"0x38","guess":"AHT21"}
-{"src":"sys","event":"i2c_found","bus":0,"addr":"0x53","guess":"ENS160"}
-{"src":"sys","event":"i2c_scan","bus":0,"count":2,"addrs":["0x38","0x53"]}
-{"src":"sys","event":"i2c_scan","bus":1,"count":0,"addrs":[]}
+{"src":"sys","event":"i2c_found","bus":1,"addr":"0x38","guess":"AHT21"}
+{"src":"sys","event":"i2c_found","bus":1,"addr":"0x53","guess":"ENS160"}
+{"src":"sys","event":"i2c_scan","bus":0,"count":1,"addrs":["0x23"]}
+{"src":"sys","event":"i2c_scan","bus":1,"count":2,"addrs":["0x38","0x53"]}
 ```
 
-`bus` 값은 0이 I2C0(GP4/GP5), 1이 I2C1(GP2/GP3)이다.
+`bus` 값은 0이 I2C0(GP4/GP5, BH1750), 1이 I2C1(GP2/GP3, ENS160+AHT21)이다.
 
 | 스캔 결과 | 원인 |
 |---|---|
@@ -166,7 +166,7 @@ screen /dev/ttyACM0 115200
 | 주소는 잡히는데 예상과 다름 | 모듈의 ADDR 핀 설정 문제. `guess` 필드 참고 |
 | 주소가 정상인데 센서는 `false` | 초기화 시퀀스 실패. 풀업 저항 또는 전원 안정성 점검 |
 
-배선이 확정된 뒤에는 `ENABLE_I2C_SCAN`을 0으로 두어 부팅 시간을 줄인다.
+배선이 확정된 뒤에는 `ENABLE_I2C_SCAN`을 다시 0으로 되돌려 부팅 시간을 줄인다.
 
 ### 문제 해결
 
