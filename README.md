@@ -35,16 +35,125 @@ pico2_sensor_fusion/
 
 ## 빌드
 
+### pico-sdk 준비 (최초 1회)
+
+SDK 위치를 모를 경우 다음으로 찾는다. `pico_sdk_init.cmake`가 있는 폴더가 SDK 루트다.
+
 ```bash
-# pico-sdk 준비 (한 번만)
-export PICO_SDK_PATH=/path/to/pico-sdk
+find / -name "pico_sdk_init.cmake" 2>/dev/null
+echo $PICO_SDK_PATH
+```
+
+환경변수를 영구 등록한다.
+
+```bash
+echo 'export PICO_SDK_PATH=/path/to/pico-sdk' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Pico 2(RP2350)는 SDK 2.0.0 이상이 필요하다.** 1.5.x 이하면 빌드되지 않는다.
+
+```bash
+grep -i version $PICO_SDK_PATH/pico_sdk_version.cmake
+
+# 구버전일 경우 업데이트
+cd $PICO_SDK_PATH && git fetch --all --tags && git checkout 2.1.1 && git submodule update --init
+```
+
+### 빌드 실행
+
+```bash
+cd pico2_sensor_fusion
 cp $PICO_SDK_PATH/external/pico_sdk_import.cmake .
 
-mkdir build && cd build
+mkdir -p build && cd build
 cmake ..
 make -j4
-# build/sensor_fusion.uf2 를 BOOTSEL 상태의 Pico2에 복사
+ls -lh sensor_fusion.uf2
 ```
+
+## 업로드
+
+Pico2의 **BOOTSEL 버튼을 누른 채로 USB를 연결**하면 USB 대용량 저장장치로 인식된다.
+
+```bash
+lsblk                      # RPI-RP2 계열 장치가 보이면 정상
+cp sensor_fusion.uf2 /media/$USER/RP2350/    # 라벨명은 lsblk로 확인
+sync
+```
+
+자동 마운트가 되지 않으면 수동으로 마운트한다.
+
+```bash
+sudo mkdir -p /mnt/pico
+sudo mount /dev/sdb1 /mnt/pico        # 장치명은 lsblk로 확인
+sudo cp sensor_fusion.uf2 /mnt/pico/
+sync && sudo umount /mnt/pico
+```
+
+복사 직후 Pico가 자동 재부팅되며 장치가 사라진다. 정상 동작이다.
+
+### VMware 사용 시
+
+가상머신 환경에서는 BOOTSEL 장치를 호스트가 선점하는 경우가 많다. 다음을 미리 설정한다.
+
+- VM Settings → USB Controller → **USB 3.1** 선택
+- "Show all USB input devices" 체크
+- 장치 연결 시 팝업에서 **Virtual Machine** 선택
+
+USB 전환이 번거로우면 빌드까지만 VM에서 하고, `.uf2` 파일을 공유폴더로 호스트에 꺼내 호스트에서 복사하는 방법도 무방하다.
+
+## 동작 확인
+
+```bash
+ls /dev/ttyACM*
+sudo usermod -aG dialout $USER    # 권한 오류 시. 재로그인 필요
+```
+
+시리얼 모니터로 접속한다.
+
+```bash
+# picocom 권장 (개행 처리가 자연스럽다)
+picocom -b 115200 --imap lfcrlf /dev/ttyACM0
+# 종료: Ctrl+A 다음 Ctrl+X
+
+# screen 사용 시
+screen /dev/ttyACM0 115200
+# 종료: Ctrl+A 다음 K, 이어서 y
+```
+
+### 정상 출력 판별
+
+**하트비트가 5초 간격으로 올라오면 펌웨어는 정상 동작 중이다.**
+
+```json
+{"src":"sys","uptime_ms":81554}
+{"src":"sys","uptime_ms":86555}
+{"src":"sys","uptime_ms":91555}
+```
+
+부팅 라인은 전원 인가 직후 한 번만 발행되므로, 시리얼 접속이 늦으면 놓칠 수 있다. Pico의 리셋 버튼을 누르면 다시 확인할 수 있다.
+
+```json
+{"src":"sys","event":"boot","aht21":true,"ens160":true,"bh1750":true}
+```
+
+각 필드가 `false`이면 해당 센서의 초기화가 실패한 것이며, 배선 또는 I2C 주소를 점검해야 한다. 센서를 아직 연결하지 않은 단계에서는 전부 `false`로 나오고 센서 데이터 라인도 발행되지 않는 것이 정상이다.
+
+### 출력이 계단 모양으로 밀려 보이는 경우
+
+`PICO_STDIO_ENABLE_CRLF_SUPPORT=0` 설정으로 `\r` 없이 `\n`만 전송하기 때문에 발생하는 터미널 표시 현상이다. 호스트 파서 동작에는 영향이 없으며, 오히려 JSON 라인 파싱에는 이 편이 깔끔하다. 화면상 정렬이 필요하면 `picocom --imap lfcrlf` 옵션을 사용한다.
+
+### 문제 해결
+
+| 증상 | 확인 사항 |
+|---|---|
+| `/dev/ttyACM*`이 없음 | VMware USB 연결 대상, `dmesg \| tail` 확인 |
+| 아무 출력도 없음 | 보레이트 확인, Pico 리셋 후 재접속 |
+| 하트비트만 나옴 | 정상. 센서 미연결 상태 |
+| 특정 센서만 `false` | 해당 센서 배선, 풀업, I2C 주소 점검 |
+| PMS7003 값이 안 올라옴 | 5V 급전 여부, TX/RX 교차 결선 확인 |
+| `{"src":"sys","dropped":N}` 반복 | 발행 주기가 너무 빠르거나 호스트가 읽지 않는 상태 |
 
 ## 출력 프로토콜
 
