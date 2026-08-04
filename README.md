@@ -15,6 +15,8 @@ pico2_sensor_fusion/
     │   ├── ens160.c / ens160.h     # 가스/공기질
     │   ├── bh1750.c / bh1750.h     # 조도
     │   └── pms7003.c / pms7003.h   # 미세먼지
+    ├── diag/
+    │   └── i2c_scan.c / i2c_scan.h  # 부팅 시 I2C 버스 스캐너
     └── queue/
         └── line_queue.c / line_queue.h  # 단일 writer 출력 큐
 ```
@@ -143,6 +145,28 @@ screen /dev/ttyACM0 115200
 ### 출력이 계단 모양으로 밀려 보이는 경우
 
 `PICO_STDIO_ENABLE_CRLF_SUPPORT=0` 설정으로 `\r` 없이 `\n`만 전송하기 때문에 발생하는 터미널 표시 현상이다. 호스트 파서 동작에는 영향이 없으며, 오히려 JSON 라인 파싱에는 이 편이 깔끔하다. 화면상 정렬이 필요하면 `picocom --imap lfcrlf` 옵션을 사용한다.
+
+### I2C 버스 스캔
+
+`main.c`의 `ENABLE_I2C_SCAN`이 1이면 부팅 직후 두 버스의 `0x08`~`0x77` 구간을 훑어 응답하는 주소를 보고한다. 배선 문제와 주소 문제를 구분하는 가장 빠른 방법이다.
+
+```json
+{"src":"sys","event":"i2c_found","bus":0,"addr":"0x38","guess":"AHT21"}
+{"src":"sys","event":"i2c_found","bus":0,"addr":"0x53","guess":"ENS160"}
+{"src":"sys","event":"i2c_scan","bus":0,"count":2,"addrs":["0x38","0x53"]}
+{"src":"sys","event":"i2c_scan","bus":1,"count":0,"addrs":[]}
+```
+
+`bus` 값은 0이 I2C0(GP4/GP5), 1이 I2C1(GP2/GP3)이다.
+
+| 스캔 결과 | 원인 |
+|---|---|
+| 양쪽 버스 모두 `count:0` | 3.3V 전원 또는 GND 공통 연결 문제 |
+| 한쪽 버스만 `count:0` | 해당 버스의 SDA/SCL 배선 또는 핀 번호 착오 |
+| 주소는 잡히는데 예상과 다름 | 모듈의 ADDR 핀 설정 문제. `guess` 필드 참고 |
+| 주소가 정상인데 센서는 `false` | 초기화 시퀀스 실패. 풀업 저항 또는 전원 안정성 점검 |
+
+배선이 확정된 뒤에는 `ENABLE_I2C_SCAN`을 0으로 두어 부팅 시간을 줄인다.
 
 ### 문제 해결
 

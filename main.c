@@ -23,6 +23,7 @@
 #include "hardware/uart.h"
 
 #include "queue/line_queue.h"
+#include "diag/i2c_scan.h"
 #include "drivers/aht21.h"
 #include "drivers/ens160.h"
 #include "drivers/bh1750.h"
@@ -43,6 +44,11 @@
 #define PIN_PMS_TX     0
 #define PIN_PMS_RX     1
 #define PMS_BAUD       9600
+
+// ---------------- Feature flags ----------------
+// Run a bus scan at startup before touching any sensor.
+// Keep this on during bring-up, turn it off once wiring is settled.
+#define ENABLE_I2C_SCAN  1
 
 // ---------------- Scheduling periods (ms) ----------------
 // Chassis speed is about 0.228 m/s. BH1750 runs fast, the rest are
@@ -111,7 +117,17 @@ int main(void) {
     sleep_ms(1500);
 
     bus_init();
+
+#if ENABLE_I2C_SCAN
+    // Scan before sensor init: the scan sees the raw bus state, and the
+    // result still reaches the host even if an init call later stalls.
+    i2c_scan(I2C_ENV, 0);
+    i2c_scan(I2C_LUX, 1);
+    lq_flush();
+#endif
+
     sensors_init();
+    lq_flush();
 
     absolute_time_t t_lux      = get_absolute_time();
     absolute_time_t t_aht      = get_absolute_time();

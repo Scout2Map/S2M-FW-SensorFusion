@@ -19,6 +19,7 @@ pico_sdk_init()
 add_executable(sensor_fusion
     main.c
     libs/queue/line_queue.c
+    libs/diag/i2c_scan.c
     libs/drivers/aht21.c
     libs/drivers/ens160.c
     libs/drivers/bh1750.c
