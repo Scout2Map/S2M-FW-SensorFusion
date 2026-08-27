@@ -1,6 +1,8 @@
-# Scout2Map — Sensor Fusion MCU (Raspberry Pi Pico 2)
+# S2M-FW-SensorFusion
 
-RPi Pico 2(RP2350)에서 환경 센서를 읽어 USB CDC로 JSON 라인을 내보내는 펌웨어다.
+**Scout2Map** — 다중 센서 기반 환경 적응형 정찰 UGV의 환경 센서 펌웨어. RPi Pico 2(RP2350)에서 온습도·가스·조도·미세먼지 센서를 읽어 USB CDC로 JSON 라인을 내보낸다.
+
+수신 측은 [`S2M-MCU-BridgeNode`](https://github.com/Scout2Map/S2M-MCU-BridgeNode)의 `sensor_bridge`가 이 JSON 라인을 파싱해 ROS2 토픽으로 변환한다.
 
 ## 디렉토리 구조
 
@@ -223,7 +225,3 @@ screen /dev/ttyACM0 115200
 - **타임스탬프 없음**: RPi5 수신 시각을 기준으로 삼는 설계라 Pico 쪽 타임스탬프는 넣지 않았다. USB CDC 레이턴시(수 ms)는 차체 속도 0.228m/s에서 mm 단위 오차이므로 무시할 수 있다.
 - **`valid` 활용**: ENS160은 전원 인가 후 워밍업(1) → 초기시동(2) 구간을 거친다. RPi5 쪽 캐시에서 `valid >= 2`인 값은 마커에 반영하지 않는 편이 안전하다.
 - **stdio_uart 비활성화**: pico-sdk 기본값은 `printf()` 출력을 GP0/GP1로도 내보내는데, 이 핀은 PMS7003이 점유한다. 끄지 않으면 디버그 바이트가 먼지 센서로 흘러들어가고 보레이트까지 덮어써 프레임이 전부 깨진다.
-
-## 다음 단계
-
-RPi5 쪽 수신 노드: 시리얼 → 최신값 캐시 → 이동거리 10cm 트리거로 스냅샷 마커 publish.
